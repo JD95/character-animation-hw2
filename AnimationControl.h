@@ -18,6 +18,15 @@ using namespace std;
 
 class Skeleton;
 
+struct FootData {
+	vector<Vector3D> toe_position;
+	int prev_frame;
+	int cycles;
+	FootData() : cycles(0), prev_frame(0) {
+		toe_position.reserve(5000);
+	}
+};
+
 struct AnimationControl
 {
 private:
@@ -25,6 +34,8 @@ private:
 	bool ready;
 	float run_time;
 	vector<Skeleton*> characters;
+
+	FootData foot_data[3];
 
 	// state for enhanced functionality
 	float global_timewarp;
