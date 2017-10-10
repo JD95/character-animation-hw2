@@ -18,16 +18,22 @@ using namespace std;
 
 class Skeleton;
 
+struct MotionData {
+	Vector3D position;
+	Vector3D distance;
+	Vector3D velocity;
+
+	MotionData(Vector3D p)
+		: position(p) {}
+};
+
 struct FootData {
-	vector<Vector3D> toe_position;
-	vector<Vector3D> distance;
-	vector<Vector3D> velocity;
+	vector<MotionData> motion;
 	int prev_frame;
 	int cycles;
+
 	FootData() : cycles(0), prev_frame(0) {
-		toe_position.reserve(700);
-		distance.reserve(700);
-		velocity.reserve(700);
+		motion.reserve(1000);
 	}
 };
 

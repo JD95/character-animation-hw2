@@ -41,12 +41,12 @@ struct LoadSpec {
 
 const short NUM_CHARACTERS = 3;
 LoadSpec load_specs[NUM_CHARACTERS] = {
-	//LoadSpec(AMC, 1.0f, Color(0.8f,0.4f,0.8f), string("02/02_01.amc"), string("02/02.asf")),
-	//LoadSpec(AMC, 1.0f, Color(1.0f,0.4f,0.3f), string("16/16_55.amc"), string("16/16.asf")),
-	//LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/Avoid 9.bvh")),
-	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/a.bvh")),
-	LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("avoid/b.bvh")),
-	LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("avoid/c.bvh"))
+	//LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/a.bvh")),
+	//LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("avoid/b.bvh")),
+	//LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("avoid/c.bvh"))
+	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("clip1.bvh")),
+	LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("clip2.bvh")),
+	LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("clip3.bvh"))
 };
 
 Object* createMarkerBox(Vector3D position, Color _color)
@@ -79,9 +79,33 @@ void AnimationControl::restart()
 	next_marker_time = marker_time_interval;
 }
 
+
+void distance_for_frame (vector<MotionData>& data, unsigned long n) {
+	if (n == 0) return;
+	data[n].distance = data[n].position - data[n - 1].position;
+};
+
+void velocity_for_frame (vector<MotionData>& data, unsigned long n, float time) {
+	auto x = data[n].distance.x;
+	auto y = data[n].distance.y;
+	auto z = data[n].distance.z;
+
+	auto d = sqrt(x * x) + (y * y) + (z * z);
+	auto vel = (data[n].distance / d) * time;
+	data[n].velocity = vel;
+};
+
 bool AnimationControl::updateAnimation(float _elapsed_time)
 {
 	if (!ready) return false;
+
+	for (auto& character : foot_data) {
+		if (character.cycles == 0) {
+			// This is for recording data
+			_elapsed_time = 1.0 / 120.0;
+			break;
+		}
+	}
 
 	// the global time warp can be applied directly to the elapsed time between updates
 	float warped_elapsed_time = global_timewarp * _elapsed_time;
@@ -108,35 +132,23 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 	// cycle through the animation
 	for (unsigned short c = 0; c < characters.size(); c++)
 	{
-		if (foot_data[c].cycles < 1) {
+		if (foot_data[c].cycles == 0) {
 			Vector3D start, end;
 			
 			// drop box at left toes of 1st character
 			// CAREFUL - bones names are different in different skeletons
 			characters[c]->getBonePositions("LeftToeBase", start, end);
-			foot_data[c].toe_position.push_back(end);
+			foot_data[c].motion.push_back(end);
+		}
+		else if (foot_data[c].cycles == 1) {
+
+			for (int i = 1; i < foot_data[c].motion.size(); i++)
+			{
+				distance_for_frame(foot_data[c].motion, i);
+				velocity_for_frame(foot_data[c].motion, i, warped_elapsed_time);
+			}
 		}
 	}
-
-	for (unsigned short c = 0; c < characters.size(); c++) {
-		Vector3D next, travel, vel;
-		float d;
-		for (auto& frame : foot_data[c].toe_position) {
-			//Calculate the distance traveled using Vector3D.normalize()
-			next = *(&frame + 1);
-			travel = (next - frame).normalize();
-			foot_data[c].distance.push_back(travel);
-
-			
-			//Calculate velocity
-			d = sqrt((foot_data[c].distance.back().x * foot_data[c].distance.back().x) + (foot_data[c].distance.back().y * foot_data[c].distance.back().y) + (foot_data[c].distance.back().z * foot_data[c].distance.back().z));
-			vel = (foot_data[c].distance.back() / d) * warped_elapsed_time;
-			foot_data[c].velocity.push_back(vel);
-			//cout << foot_data[c].velocity.back() << endl;
-			cout << display_data.sequence_frame[0] << endl;
-		}
-	}
-
 
 
 	if (run_time >= next_marker_time && run_time <= max_marker_time)
