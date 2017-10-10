@@ -10,6 +10,7 @@
 // C/C++ libraries
 #include <cstdio>
 #include <complex>
+#include <algorithm>
 // SKA modules
 #include <Core/Utilities.h>
 //#include <Animation/RawMotionController.h>
@@ -41,9 +42,12 @@ struct LoadSpec {
 
 const short NUM_CHARACTERS = 3;
 LoadSpec load_specs[NUM_CHARACTERS] = {
-	LoadSpec(AMC, 1.0f, Color(0.8f,0.4f,0.8f), string("02/02_01.amc"), string("02/02.asf")),
-	LoadSpec(AMC, 1.0f, Color(1.0f,0.4f,0.3f), string("16/16_55.amc"), string("16/16.asf")),
-	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/Avoid 9.bvh"))
+	//LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/a.bvh")),
+	//LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("avoid/b.bvh")),
+	//LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("avoid/c.bvh"))
+	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("clip1.bvh")),
+	LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("clip2.bvh")),
+	LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("clip3.bvh"))
 };
 
 Object* createMarkerBox(Vector3D position, Color _color)
@@ -76,9 +80,54 @@ void AnimationControl::restart()
 	next_marker_time = marker_time_interval;
 }
 
+
+void distance_for_frame (vector<MotionData>& data, const unsigned long n) {
+	if (n == 0) return;
+	data[n].distance = data[n].position - data[n - 1].position;
+};
+
+void velocity_for_frame (vector<MotionData>& data, const unsigned long n, const float time) {
+	auto x = data[n].distance.x;
+	auto y = data[n].distance.y;
+	auto z = data[n].distance.z;
+
+	auto d = sqrt(x * x) + (y * y) + (z * z);
+	auto vel = (data[n].distance / d) * time;
+	data[n].velocity = vel;
+};
+
+vector<long> extract_sync_frames(const vector<MotionData>& data) {
+	
+	vector<long> sync_frames;
+	auto start = data.begin();
+	auto foot_strike = [](const MotionData& d) {
+		return d.velocity.magnitude() <= 0.01;
+	};
+
+	while (start != data.end()) {
+		auto sync = std::find_if(start, data.end(), foot_strike);
+
+		if (sync == data.end()) 
+			break;
+
+		sync_frames.push_back(sync->frame);
+		start = std::find_if_not(sync, data.end(), foot_strike);
+	}
+
+	return sync_frames;
+}
+
 bool AnimationControl::updateAnimation(float _elapsed_time)
 {
 	if (!ready) return false;
+
+	for (auto& character : foot_data) {
+		if (character.cycles == 0) {
+			// This is for recording data
+			_elapsed_time = 1.0 / 120.0;
+			break;
+		}
+	}
 
 	// the global time warp can be applied directly to the elapsed time between updates
 	float warped_elapsed_time = global_timewarp * _elapsed_time;
@@ -93,7 +142,41 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 		OpenMotionSequenceController* controller = (OpenMotionSequenceController*)characters[c]->getMotionController();
 		display_data.sequence_time[c] = controller->getSequenceTime();
 		display_data.sequence_frame[c] = controller->getSequenceFrame();
+		
+		if (display_data.sequence_frame[c] < foot_data[c].prev_frame) {
+			foot_data[c].cycles++;
+		}
+
+		foot_data[c].prev_frame = display_data.sequence_frame[c];
 	}
+
+	// Record foot position until a complete
+	// cycle through the animation
+	for (unsigned short c = 0; c < characters.size(); c++)
+	{
+		if (foot_data[c].cycles == 0) {
+			Vector3D start, end;
+			
+			// drop box at left toes of 1st character
+			// CAREFUL - bones names are different in different skeletons
+			characters[c]->getBonePositions("LeftToeBase", start, end);
+			foot_data[c].motion.emplace_back(end, display_data.sequence_frame[c]);
+		}
+		else if (foot_data[c].cycles == 1) {
+
+			for (int i = 1; i < foot_data[c].motion.size(); i++)
+			{
+				distance_for_frame(foot_data[c].motion, i);
+				velocity_for_frame(foot_data[c].motion, i, warped_elapsed_time);
+			}
+
+			// Extract Sync Frames
+			foot_data[c].motion.shrink_to_fit();
+			auto sync_frames = extract_sync_frames(foot_data[c].motion);
+			system("pause");
+		}
+	}
+
 
 	if (run_time >= next_marker_time && run_time <= max_marker_time)
 	{
@@ -101,7 +184,7 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 		Vector3D start, end;
 		// drop box at left toes of 1st character
 		// CAREFUL - bones names are different in different skeletons
-		characters[0]->getBonePositions("ltoes", start, end);
+		characters[0]->getBonePositions("LeftToeBase", start, end);
 		Object* marker = createMarkerBox(end, color);
 		render_lists.erasables.push_back(marker);
 		next_marker_time += marker_time_interval;
