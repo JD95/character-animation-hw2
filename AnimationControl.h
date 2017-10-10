@@ -16,6 +16,8 @@ using namespace std;
 // SKA modules
 #include <Objects/Object.h>
 
+#define ARRAY_SIZE(array) (sizeof((array))/sizeof((array[0])))
+
 class Skeleton;
 
 struct AnimationControl
