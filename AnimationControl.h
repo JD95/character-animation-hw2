@@ -20,10 +20,14 @@ class Skeleton;
 
 struct FootData {
 	vector<Vector3D> toe_position;
+	vector<Vector3D> distance;
+	vector<Vector3D> velocity;
 	int prev_frame;
 	int cycles;
 	FootData() : cycles(0), prev_frame(0) {
-		toe_position.reserve(5000);
+		toe_position.reserve(700);
+		distance.reserve(700);
+		velocity.reserve(700);
 	}
 };
 

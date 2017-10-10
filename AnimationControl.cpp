@@ -41,9 +41,12 @@ struct LoadSpec {
 
 const short NUM_CHARACTERS = 3;
 LoadSpec load_specs[NUM_CHARACTERS] = {
-	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("clip1.bvh")),
-	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("clip2.bvh")),
-	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("clip3.bvh"))
+	//LoadSpec(AMC, 1.0f, Color(0.8f,0.4f,0.8f), string("02/02_01.amc"), string("02/02.asf")),
+	//LoadSpec(AMC, 1.0f, Color(1.0f,0.4f,0.3f), string("16/16_55.amc"), string("16/16.asf")),
+	//LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/Avoid 9.bvh")),
+	LoadSpec(BVH, 0.2f, Color(0.0f,1.0f,0.0f), string("avoid/a.bvh")),
+	LoadSpec(BVH, 0.2f, Color(0.8f,0.4f,0.8f), string("avoid/b.bvh")),
+	LoadSpec(BVH, 0.2f, Color(1.0f,0.4f,0.3f), string("avoid/c.bvh"))
 };
 
 Object* createMarkerBox(Vector3D position, Color _color)
@@ -80,14 +83,6 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 {
 	if (!ready) return false;
 
-	for (auto& character : foot_data) {
-		if (character.cycles == 0) {
-			// This is for recording data
-			_elapsed_time = 1.0 / 120.0;
-			break;
-		}
-	}
-
 	// the global time warp can be applied directly to the elapsed time between updates
 	float warped_elapsed_time = global_timewarp * _elapsed_time;
 
@@ -101,8 +96,7 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 		OpenMotionSequenceController* controller = (OpenMotionSequenceController*)characters[c]->getMotionController();
 		display_data.sequence_time[c] = controller->getSequenceTime();
 		display_data.sequence_frame[c] = controller->getSequenceFrame();
-
-		// Count how many times the animation has reset.
+		
 		if (display_data.sequence_frame[c] < foot_data[c].prev_frame) {
 			foot_data[c].cycles++;
 		}
@@ -116,12 +110,33 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 	{
 		if (foot_data[c].cycles < 1) {
 			Vector3D start, end;
+			
 			// drop box at left toes of 1st character
 			// CAREFUL - bones names are different in different skeletons
 			characters[c]->getBonePositions("LeftToeBase", start, end);
 			foot_data[c].toe_position.push_back(end);
 		}
 	}
+
+	for (unsigned short c = 0; c < characters.size(); c++) {
+		Vector3D next, travel, vel;
+		float d;
+		for (auto& frame : foot_data[c].toe_position) {
+			//Calculate the distance traveled using Vector3D.normalize()
+			next = *(&frame + 1);
+			travel = (next - frame).normalize();
+			foot_data[c].distance.push_back(travel);
+
+			
+			//Calculate velocity
+			d = sqrt((foot_data[c].distance.back().x * foot_data[c].distance.back().x) + (foot_data[c].distance.back().y * foot_data[c].distance.back().y) + (foot_data[c].distance.back().z * foot_data[c].distance.back().z));
+			vel = (foot_data[c].distance.back() / d) * warped_elapsed_time;
+			foot_data[c].velocity.push_back(vel);
+			//cout << foot_data[c].velocity.back() << endl;
+			cout << display_data.sequence_frame[0] << endl;
+		}
+	}
+
 
 
 	if (run_time >= next_marker_time && run_time <= max_marker_time)
@@ -133,7 +148,7 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 		characters[0]->getBonePositions("LeftToeBase", start, end);
 		Object* marker = createMarkerBox(end, color);
 		render_lists.erasables.push_back(marker);
-		next_marker_time += marker_time_interval;	
+		next_marker_time += marker_time_interval;
 	}
 
 	return true;
