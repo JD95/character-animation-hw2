@@ -10,6 +10,7 @@
 // C/C++ libraries
 #include <cstdio>
 #include <complex>
+#include <algorithm>
 // SKA modules
 #include <Core/Utilities.h>
 //#include <Animation/RawMotionController.h>
@@ -80,12 +81,12 @@ void AnimationControl::restart()
 }
 
 
-void distance_for_frame (vector<MotionData>& data, unsigned long n) {
+void distance_for_frame (vector<MotionData>& data, const unsigned long n) {
 	if (n == 0) return;
 	data[n].distance = data[n].position - data[n - 1].position;
 };
 
-void velocity_for_frame (vector<MotionData>& data, unsigned long n, float time) {
+void velocity_for_frame (vector<MotionData>& data, const unsigned long n, const float time) {
 	auto x = data[n].distance.x;
 	auto y = data[n].distance.y;
 	auto z = data[n].distance.z;
@@ -94,6 +95,27 @@ void velocity_for_frame (vector<MotionData>& data, unsigned long n, float time) 
 	auto vel = (data[n].distance / d) * time;
 	data[n].velocity = vel;
 };
+
+vector<long> extract_sync_frames(const vector<MotionData>& data) {
+	
+	vector<long> sync_frames;
+	auto start = data.begin();
+	auto foot_strike = [](const MotionData& d) {
+		return d.velocity.magnitude() <= 0.01;
+	};
+
+	while (start != data.end()) {
+		auto sync = std::find_if(start, data.end(), foot_strike);
+
+		if (sync == data.end()) 
+			break;
+
+		sync_frames.push_back(sync->frame);
+		start = std::find_if_not(sync, data.end(), foot_strike);
+	}
+
+	return sync_frames;
+}
 
 bool AnimationControl::updateAnimation(float _elapsed_time)
 {
@@ -138,7 +160,7 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 			// drop box at left toes of 1st character
 			// CAREFUL - bones names are different in different skeletons
 			characters[c]->getBonePositions("LeftToeBase", start, end);
-			foot_data[c].motion.push_back(end);
+			foot_data[c].motion.emplace_back(end, display_data.sequence_frame[c]);
 		}
 		else if (foot_data[c].cycles == 1) {
 
@@ -147,6 +169,11 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 				distance_for_frame(foot_data[c].motion, i);
 				velocity_for_frame(foot_data[c].motion, i, warped_elapsed_time);
 			}
+
+			// Extract Sync Frames
+			foot_data[c].motion.shrink_to_fit();
+			auto sync_frames = extract_sync_frames(foot_data[c].motion);
+			system("pause");
 		}
 	}
 

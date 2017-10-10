@@ -19,12 +19,14 @@ using namespace std;
 class Skeleton;
 
 struct MotionData {
+	long frame;
 	Vector3D position;
 	Vector3D distance;
 	Vector3D velocity;
 
-	MotionData(Vector3D p)
-		: position(p) {}
+	MotionData(Vector3D p, long f)
+	: position(p)
+	, frame(f) {}
 };
 
 struct FootData {
