@@ -56,6 +56,33 @@ Object* createMarkerBox(Vector3D position, Color _color)
 	return marker;
 }
 
+// figures out what the starting index is
+int getStartingIndex(float yRealTime, float y[]) {
+	try {
+		for (int i = 0; i < ARRAY_SIZE(y); i++) {
+			if (yRealTime >= y[i] && yRealTime < y[i + 1]) {
+				return i;
+			}
+		}
+	}
+	catch (int i) {
+		std::cout << "Y array does not contain any two values greater than and less than " << yRealTime << endl;
+	}
+}
+
+// x is being warpped to fit y
+float timeWarp(float x[], float y[], float yRealTime) {
+	int startIndex = getStartingIndex(yRealTime, y);
+	float xRealTime = 0;
+	try {
+		xRealTime = (x[startIndex] + (yRealTime - y[startIndex])  * ((x[startIndex + 1] - x[startIndex]) / (y[startIndex + 1] - y[startIndex])));
+	}
+	catch (int i) {
+		std::cout << "Going out of index when accessing index " << i + 1;
+	}
+	return xRealTime;
+}
+
 AnimationControl::AnimationControl() 
 	: ready(false), run_time(0.0f), 
 	global_timewarp(1.0f),
