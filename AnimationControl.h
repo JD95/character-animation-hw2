@@ -20,13 +20,16 @@ class Skeleton;
 
 struct MotionData {
 	long frame;
+	float time;
 	Vector3D position;
 	Vector3D distance;
 	Vector3D velocity;
 
-	MotionData(Vector3D p, long f)
+	MotionData(Vector3D p, long f, float t)
 	: position(p)
-	, frame(f) {}
+	, frame(f)
+	, time(t)
+	{}
 };
 
 struct FootData {

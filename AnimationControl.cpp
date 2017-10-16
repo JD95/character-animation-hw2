@@ -160,7 +160,7 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 			// drop box at left toes of 1st character
 			// CAREFUL - bones names are different in different skeletons
 			characters[c]->getBonePositions("LeftToeBase", start, end);
-			foot_data[c].motion.emplace_back(end, display_data.sequence_frame[c]);
+			foot_data[c].motion.emplace_back(end, display_data.sequence_frame[c], run_time);
 		}
 		else if (foot_data[c].cycles == 1) {
 
@@ -173,7 +173,6 @@ bool AnimationControl::updateAnimation(float _elapsed_time)
 			// Extract Sync Frames
 			foot_data[c].motion.shrink_to_fit();
 			auto sync_frames = extract_sync_frames(foot_data[c].motion);
-			system("pause");
 		}
 	}
 
