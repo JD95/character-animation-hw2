@@ -101,7 +101,7 @@ vector<long> extract_sync_frames(const vector<MotionData>& data) {
 	vector<long> sync_frames;
 	auto start = data.begin();
 	auto foot_strike = [](const MotionData& d) {
-		return d.velocity.magnitude() <= 0.01;
+		return d.velocity.magnitude() <= 0.004;
 	};
 
 	while (start != data.end()) {
