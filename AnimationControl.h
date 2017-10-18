@@ -39,6 +39,7 @@ struct FootData {
 	vector<float> sync_frames;
 	int prev_frame;
 	int cycles;
+	float time;
 
 	FootData() : cycles(0), prev_frame(0) {
 		motion.reserve(1000);
