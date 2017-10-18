@@ -186,6 +186,10 @@ bool AnimationControl::getData(float _elapsed_time) {
 
 		if (display_data.sequence_frame[c] < foot_data[c].prev_frame) {
 			foot_data[c].cycles++;
+			if (foot_data[c].end_time < run_time) {
+				foot_data[c].end_time = run_time;
+			}
+			
 		}
 
 		foot_data[c].prev_frame = display_data.sequence_frame[c];
@@ -224,11 +228,16 @@ bool AnimationControl::warpTime(float _elapsed_time) {
 	float warped_elapsed_time = global_timewarp * _elapsed_time;
 	if (!ready) return false;
 
+	cout << foot_data[0].end_time << endl;
+
 	for (auto& character : foot_data) {
-		if (character.time > character.sync_frames[character.sync_frames.size() - 1]) {
+		if (character.time >= character.end_time) {
+			for (auto& c : foot_data) {
+				c.time = 0;
+				run_time = 0;
+			}
 			cout << "restarting\n";
-			character.time = 0;
-			restart();
+			break;
 		}
 	}
 
