@@ -96,33 +96,24 @@ void velocity_for_frame(vector<MotionData>& data, const unsigned long n, const f
 	data[n].velocity = vel;
 };
 
-vector<float> extract_sync_frames(const vector<MotionData>& data) {
+vector<float> extract_sync_frames( vector<MotionData>& data) {
 
 	vector<float> sync_frames;
 	auto start = data.begin();
-	
-	bool goingUp = true;
+	auto foot_strike = [](MotionData& d) {
+		return d.distance.getY() <= 0.27;
+	};
 
 	while (start != data.end()) {
-		if (goingUp) {
+		auto sync = std::find_if(start, data.end(), foot_strike);
 
-			start = std::adjacent_find(start, data.end(), [](MotionData prev, MotionData current) {
-				return current.distance.getY() < prev.distance.getY();
-			});
+		if (sync == data.end())
+			break;
 
-			goingUp = false;
-		}
-		else {
-
-			start = std::adjacent_find(start, data.end(), [](MotionData prev, MotionData current) {
-				return prev.distance.getY() < current.distance.getY();
-			});
-
-			sync_frames.push_back(start->time);
-			goingUp = true;
-		}
+		sync_frames.push_back(sync->frame);
+		start = std::find_if_not(sync, data.end(), foot_strike);
 	}
-	
+
 	return sync_frames;
 }
 
@@ -142,16 +133,17 @@ int getStartingIndex(float yRealTime,const vector<float>& y) {
 }
 
 // x is being warpped to fit y
-float timeWarp(const vector<float>& x,const vector<float>& y, float yRealTime) {
-	int startIndex = getStartingIndex(yRealTime, y);
+float timeWarp(const vector<float>& x,const vector<float>& y, int startIndex, float yRealTime) {
 	float xRealTime = 0;
-	try {
-		xRealTime = (x[startIndex] + (yRealTime - y[startIndex])  * ((x[startIndex + 1] - x[startIndex]) / (y[startIndex + 1] - y[startIndex])));
+
+	if (startIndex > x.size() - 1 || startIndex > y.size() - 1 || y[startIndex] <= 0) {
+		cout << "Doing a thing! Index " << startIndex << endl;
+		return yRealTime;
 	}
-	catch (int i) {
-		std::cout << "Going out of index when accessing index " << i + 1;
+	else {
+		return yRealTime * (y[startIndex + 1] / x[startIndex + 1]);
 	}
-	return xRealTime;
+
 }
 
 bool AnimationControl::getData(float _elapsed_time) {
@@ -228,27 +220,29 @@ bool AnimationControl::getData(float _elapsed_time) {
 }
 
 bool AnimationControl::warpTime(float _elapsed_time) {
-
 	// the global time warp can be applied directly to the elapsed time between updates
 	float warped_elapsed_time = global_timewarp * _elapsed_time;
 	if (!ready) return false;
 
-	run_time += warped_elapsed_time;
-
 	for (auto& character : foot_data) {
-		if (run_time > character.sync_frames[character.sync_frames.size() - 1])
-			run_time = 0;
+		if (character.time > character.sync_frames[character.sync_frames.size() - 1]) {
+			cout << "restarting\n";
+			character.time = 0;
+			restart();
+		}
 	}
 
 	for (unsigned short c = 0; c < 3; c++)
 	{
 		if (characters[c] != NULL) {
-			if (c != 0) {
-				characters[c]->update(timeWarp(foot_data[0].sync_frames, foot_data[c].sync_frames, run_time));
+			if (c != 2) {
+				int startIndex = getStartingIndex(foot_data[c].time, foot_data[c].sync_frames);
+				foot_data[c].time += timeWarp(foot_data[2].sync_frames, foot_data[c].sync_frames, startIndex, warped_elapsed_time);
 			}
 			else {
-				characters[c]->update(run_time);
+				foot_data[c].time += warped_elapsed_time;
 			}
+			characters[c]->update(foot_data[c].time);
 		}
 
 		// pull local time and frame out of each skeleton's controller
@@ -256,12 +250,6 @@ bool AnimationControl::warpTime(float _elapsed_time) {
 		OpenMotionSequenceController* controller = (OpenMotionSequenceController*)characters[c]->getMotionController();
 		display_data.sequence_time[c] = controller->getSequenceTime();
 		display_data.sequence_frame[c] = controller->getSequenceFrame();
-
-		if (display_data.sequence_frame[c] < foot_data[c].prev_frame) {
-			foot_data[c].cycles++;
-		}
-
-		foot_data[c].prev_frame = display_data.sequence_frame[c];
 	}
 
 	return true;
