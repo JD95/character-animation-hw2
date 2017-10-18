@@ -40,6 +40,7 @@ struct FootData {
 	int prev_frame;
 	int cycles;
 	float time;
+	float end_time;
 
 	FootData() : cycles(0), prev_frame(0) {
 		motion.reserve(1000);
